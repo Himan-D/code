@@ -69,22 +69,19 @@ Full-screen TUI. Same UI you run locally.`}</pre>
 
         <pre style={{fontSize:'10px', lineHeight:'14px', padding:'14px 12px 0', whiteSpace:'pre-wrap'}}>{`> playground
 
-  All motion is text. No images. No canvas.
-  Just monospace.
+  Paste the curl. Run hystersis. Ask it anything.
 
-  [01] TUI        — scrollback · prompt · diff
-  [02] TOOLS      — terminal · search · sandbox
-  [03] WORKSPACE  — git · worktree · checkpoints`}</pre>
+  > Refactor auth middleware to use session store
+  > Explain this codebase in one page
+  > Find where we handle checkpointing
+
+  It reads, edits, checks — then shows you the diff.`}</pre>
 
         <pre style={{fontSize:'11px', lineHeight:'14px', margin:'16px 12px 0', border:'1px solid #fff', padding:'10px', textAlign:'center'}}>{`[ Install now ]    [ GitHub -> ]`}</pre>
 
         <pre style={{fontSize:'9px', opacity:0.5, padding:'14px 12px 10px', borderTop:'1px solid #fff', marginTop:'16px', display:'flex', justifyContent:'space-between'}}>
-{`© 2026 Hystersis                    ASCII · JetBrains Mono · 100% text`}</pre>
+{`© 2026 Hystersis`}</pre>
       </div>
-
-      <pre style={{fontSize:'9px', opacity:0.25, textAlign:'center', marginTop:'10px'}}>{`+--------------------------------------------------+
-|  100% ASCII  ·  0% IMAGES  ·  BLACK & WHITE ONLY  |
-+--------------------------------------------------+`}</pre>
     </div>
   )
 }
