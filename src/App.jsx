@@ -13,7 +13,9 @@ export default function App(){
         ::selection{background:#fff;color:#000}
         @media(max-width:600px){
           .hero-title{font-size:18px !important; line-height:20px !important}
-          .curl code{font-size:9px !important}
+          .curl{flex-direction:column !important; align-items:stretch !important; gap:8px !important}
+          .curl code{font-size:9px !important; white-space:normal !important; word-break:break-all !important; overflow-wrap:anywhere !important}
+          .curl button{width:100% !important}
           .tui{font-size:9px !important}
         }
       `}</style>
