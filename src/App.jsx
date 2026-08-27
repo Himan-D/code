@@ -65,7 +65,7 @@ export default function App(){
 
         <section aria-label="TUI preview" className="tui" style={{margin:'14px 12px 0', border:'1px solid #fff', padding:'10px', fontSize:'10px', lineHeight:'14px', overflow:'auto'}}>
           <div style={{display:'flex', justifyContent:'space-between', opacity:0.7, borderBottom:'1px solid #fff', paddingBottom:'6px', marginBottom:'8px'}}>
-            <span>hystersis — xai-hystersis-pager</span><span>[● ready]</span>
+            <span>hystersis</span><span>[● ready]</span>
           </div>
           <div>&gt; Refactor auth middleware to use new store</div>
           <div style={{marginTop:'6px', opacity:0.8}}>· [scan] crates/codegen/hystersis-agent ...<br/>· [edit] src/builder.rs +42 -8<br/>· [check] cargo check ✔ 1.79s · [test] 12 passed</div>
