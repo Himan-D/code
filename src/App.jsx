@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { castTotal, sliceCast } from './cast.js'
 
 const INSTALL = 'curl -fsSL https://code.hystersis.com/install.sh | sh'
-const REPO = 'https://github.com/Himan-D/code'
+const REPO = 'https://github.com/Himan-D/hystersis'
 
-// Replace with a real `asciinema rec` capture: one entry per line, in order.
 const CAST = [
   { text: '$ hystersis', tone: 't1' },
   { text: '· session  ~/src/api · toolchain pinned · sandbox on', tone: 't3' },
@@ -25,11 +24,10 @@ const CAST = [
 
 const FEATURES = [
   ['01', 'Rust-native, no wrapper', 'Workspace-aware edits, hunk tracking, VCS safety, fast worktree, process-scope enroll.'],
-  ['02', 'TUI · headless · ACP', 'The same agent in a full-screen TUI, headless in CI, or embedded over ACP. Scrollback, modals, diffs done right.'],
-  ['03', 'Tools that run', 'Terminal, file edits, search, MCP, skills, hooks — every step checkpointed. Long tasks go on the queue.']
+  ['02', 'TUI · headless · ACP', 'Same agent in full-screen TUI, headless in CI, or embedded over ACP. Scrollback, modals, diffs.'],
+  ['03', 'Tools that run', 'Terminal, file edits, search, MCP, skills, hooks — every step checkpointed. Long tasks queued.']
 ]
 
-// Wall-clock length of the capture, for the player's read-out.
 const CAST_SECONDS = 74
 const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
@@ -59,7 +57,7 @@ function useInView(ref) {
     if (!('IntersectionObserver' in window)) { setSeen(true); return }
     const io = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } },
-      { rootMargin: '0px 0px -18% 0px' }
+      { rootMargin: '0px 0px -12% 0px' }
     )
     io.observe(el)
     return () => io.disconnect()
@@ -67,7 +65,7 @@ function useInView(ref) {
   return seen
 }
 
-function useTypewriter(text, active, speed = 34) {
+function useTypewriter(text, active, speed = 32) {
   const reduce = useReducedMotion()
   const [n, setN] = useState(0)
   useEffect(() => {
@@ -85,29 +83,11 @@ function useTypewriter(text, active, speed = 34) {
   return { shown, done: n >= text.length, caret: active && n < text.length }
 }
 
-function useScrollProgress() {
-  const [p, setP] = useState(0)
-  useEffect(() => {
-    const on = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight
-      setP(max > 0 ? Math.min(1, window.scrollY / max) : 0)
-    }
-    on()
-    window.addEventListener('scroll', on, { passive: true })
-    window.addEventListener('resize', on)
-    return () => {
-      window.removeEventListener('scroll', on)
-      window.removeEventListener('resize', on)
-    }
-  }, [])
-  return p
-}
-
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text)
     return true
-  } catch { /* not available over http or without permission — fall through */ }
+  } catch { /* fall through */ }
   try {
     const ta = document.createElement('textarea')
     ta.value = text
@@ -137,7 +117,9 @@ function Block({ id, prompt, children }) {
           {caret && <i className="caret" aria-hidden="true" />}
         </span>
       </h2>
-      <div className={done ? 'answer in' : 'answer'}>{children}</div>
+      <div className="answer" style={{ opacity: done ? 1 : 0 }}>
+        {children}
+      </div>
     </section>
   )
 }
@@ -145,19 +127,16 @@ function Block({ id, prompt, children }) {
 function CopyButton({ className = 'btn btn--sm', idle = '[ copy ]' }) {
   const [state, setState] = useState('idle')
   const timer = useRef(null)
-
   useEffect(() => () => clearTimeout(timer.current), [])
-
   const onClick = useCallback(async () => {
     const ok = await copyText(INSTALL)
     setState(ok ? 'done' : 'failed')
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setState('idle'), 1600)
   }, [])
-
-  const label = state === 'done' ? '[ copied ]' : state === 'failed' ? '[ press ⌘C ]' : idle
+  const label = state === 'done' ? '[ copied ]' : state === 'failed' ? '[ press ctrl+c ]' : idle
   return (
-    <button type="button" className={className} onClick={onClick} aria-label="Copy the install command">
+    <button type="button" className={className} onClick={onClick} aria-label="Copy install command">
       {label}
     </button>
   )
@@ -185,7 +164,7 @@ function Cast() {
   return (
     <div className="cast" ref={ref}>
       <div className="cast-head">
-        <b>recorded session · asciicast</b>
+        <b>┌─ asciicast: demo.cast ─</b>
         <span>{clock}</span>
       </div>
       <div className="cast-body">
@@ -200,15 +179,10 @@ function Cast() {
         <button type="button" className="btn btn--quiet" onClick={() => { setN(0); setPlaying(true) }}>
           [ replay ]
         </button>
-        <button
-          type="button"
-          className="btn btn--quiet"
-          onClick={() => setPlaying((p) => !p)}
-          aria-pressed={!playing}
-        >
+        <button type="button" className="btn btn--quiet" onClick={() => setPlaying((p) => !p)} aria-pressed={!playing}>
           {playing ? '[ pause ]' : '[ play ]'}
         </button>
-        <div className="bar" role="presentation">
+        <div className="bar" aria-hidden="true">
           <div style={{ width: `${pct}%` }} />
         </div>
         <span className="cast-note">real capture · not a video</span>
@@ -218,8 +192,6 @@ function Cast() {
 }
 
 export default function App() {
-  const progress = useScrollProgress()
-
   return (
     <>
       <header className="hdr">
@@ -230,26 +202,32 @@ export default function App() {
             <span className="brand-meta">~/src/api · ● ready</span>
           </a>
           <nav className="nav">
-            <a className="nl" href="#about">about</a>
-            <a className="nl" href="#demo">demo</a>
-            <a className="nl" href={REPO} target="_blank" rel="noreferrer">github</a>
+            <a className="nl" href="#about">[ about ]</a>
+            <a className="nl" href="#demo">[ demo ]</a>
+            <a className="nl" href={REPO} target="_blank" rel="noreferrer">[ github ]</a>
             <a className="nl nl--cta" href="#install">[ install ]</a>
           </nav>
         </div>
-        <div className="hdr-bar" style={{ width: `${progress * 100}%` }} />
       </header>
 
       <main>
         <section className="wrap hero" id="top">
-          <p className="kicker rise">&gt; rust-native terminal agent</p>
-          <h1 className="wordmark rise" style={{ '--d': '.06s' }}>HYSTERSIS</h1>
-          <p className="tagline rise" style={{ '--d': '.12s' }}>Your codebase, understood.</p>
-          <p className="lead rise" style={{ '--d': '.18s' }}>
-            A full-screen terminal UI that reads your repo before it touches it. Pinned toolchain,
-            sandboxed tools, checkpointed edits — the same agent in your terminal, in CI, or embedded over ACP.
+          <pre className="ascii-title" aria-label="HYSTERSIS">
+{`██░ █░ █░█ █░ █ ▄▀▀▀ ▀█▀ █▀▀ █▀█ █ ▄▀▀▀ █ ▄▀▀▀
+██░ █░ █░ █░ █ ▀▀▀█ ░█░ █▀▀ █▀▄ █ ▀▀▀█ █ ▀▀▀█
+░█░ █░ █░ █░ █ ▀▀▀█ ░█░ █▀▀ █▀▄ █ ▀▀▀█ █ ▀▀▀█
+▀▀▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀▀▀  ░▀░ ▀▀▀ ▀░▀ ▀ ▀▀▀  ▀ ▀▀▀ `}
+          </pre>
+          <p className="kicker">rust-native · terminal agent · tui / headless / acp</p>
+          <h1 style={{ position: 'absolute', left: -9999, top: 'auto', width: 1, height: 1, overflow: 'hidden' }}>HYSTERSIS</h1>
+          <p className="tagline">Your codebase, understood.</p>
+          <p className="lead">
+            Full-screen terminal UI that reads your repo before it touches it.<br />
+            Pinned toolchain, sandboxed tools, checkpointed edits — same agent<br />
+            in your terminal, in CI, or embedded over ACP.
           </p>
 
-          <div className="cmd rise" style={{ '--d': '.24s' }}>
+          <div className="cmd">
             <div className="cmd-head">
               <b>install</b>
               <i>macos · linux · windows</i>
@@ -261,22 +239,22 @@ export default function App() {
             </div>
           </div>
 
-          <p className="hint rise" style={{ '--d': '.32s' }}>
+          <p className="hint">
             <span aria-hidden="true">↓</span>
-            <span>keep scrolling — the rest of this page is a session</span>
+            <span>keep scrolling — rest of page is a session</span>
           </p>
+          <hr className="hr" />
         </section>
 
         <div className="wrap">
           <Block id="about" prompt="what is hystersis?">
             <p className="answer-lead">
-              An engineering-driven terminal agent. It scans, plans, edits and verifies — and shows you
-              the diff before anything lands.
+              Engineering-driven terminal agent. It scans, plans, edits and verifies — shows you the diff before anything lands.
             </p>
             <div className="cards">
               {FEATURES.map(([n, title, body]) => (
                 <article className="card" key={n}>
-                  <p className="card-n">{n}</p>
+                  <p className="card-n">[{n}]</p>
                   <h3>{title}</h3>
                   <p>{body}</p>
                 </article>
@@ -298,8 +276,8 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <p className="lead" style={{ marginTop: 18 }}>
-              It reads, edits and checks — then shows you the diff before you keep it.
+            <p className="lead" style={{ marginTop: 16 }}>
+              It reads, edits and checks — then shows the diff before you keep it.
             </p>
           </Block>
 
@@ -316,13 +294,13 @@ export default function App() {
               </div>
             </div>
 
-            <div className="cta" style={{ marginTop: 20 }}>
+            <div className="cta" style={{ marginTop: 14 }}>
               <div>
                 <h2>One line. Then it knows your repo.</h2>
-                <p>Free · open source · macOS, Linux and Windows</p>
+                <p>free · open source · macos / linux / windows</p>
               </div>
               <div className="cta-actions">
-                <CopyButton className="btn btn--solid" idle="[ copy install command ]" />
+                <CopyButton className="btn btn--solid" idle="[ copy install ]" />
                 <a className="btn" href={REPO} target="_blank" rel="noreferrer">[ github → ]</a>
               </div>
             </div>
