@@ -1,8 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { castTotal, sliceCast } from './cast.js'
 
-const INSTALL = 'curl -fsSL https://code.hystersis.com/install.sh | sh'
+const INSTALL_UNIX = 'curl -fsSL https://code.hystersis.com/install.sh | sh'
+const INSTALL_WIN = 'powershell -c "irm https://code.hystersis.com/install.ps1 | iex"'
 const REPO = 'https://github.com/Himan-D/hystersis'
+
+function detectOS() {
+  if (typeof navigator === 'undefined') return { os: 'unknown', label: 'macOS · Linux · Windows', prompt: '$' }
+  const ua = (navigator.userAgent || '').toLowerCase()
+  const plat = (navigator.platform || '').toLowerCase()
+  const isWin = ua.includes('win') || plat.includes('win')
+  const isMac = ua.includes('mac') || plat.includes('mac')
+  const isLinux = ua.includes('linux') || plat.includes('linux') || ua.includes('x11')
+  if (isWin) return { os: 'windows', label: 'Windows', prompt: '>' }
+  if (isMac) return { os: 'macos', label: 'macOS', prompt: '$' }
+  if (isLinux) return { os: 'linux', label: 'Linux', prompt: '$' }
+  return { os: 'unknown', label: 'macOS · Linux · Windows', prompt: '$' }
+}
+
+function useOS() {
+  const [os, setOs] = useState({ os: 'unknown', label: 'macOS · Linux · Windows', prompt: '$' })
+  useEffect(() => setOs(detectOS()), [])
+  return os
+}
 
 const CAST = [
   { text: '$ hystersis', tone: 't1' },
@@ -124,16 +144,16 @@ function Block({ id, prompt, children }) {
   )
 }
 
-function CopyButton({ className = 'btn btn--sm', idle = '[ copy ]' }) {
+function CopyButton({ text, className = 'btn btn--sm', idle = '[ copy ]' }) {
   const [state, setState] = useState('idle')
   const timer = useRef(null)
   useEffect(() => () => clearTimeout(timer.current), [])
   const onClick = useCallback(async () => {
-    const ok = await copyText(INSTALL)
+    const ok = await copyText(text)
     setState(ok ? 'done' : 'failed')
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setState('idle'), 1600)
-  }, [])
+  }, [text])
   const label = state === 'done' ? '[ copied ]' : state === 'failed' ? '[ press ctrl+c ]' : idle
   return (
     <button type="button" className={className} onClick={onClick} aria-label="Copy install command">
@@ -192,6 +212,10 @@ function Cast() {
 }
 
 export default function App() {
+  const os = useOS()
+  const installCmd = os.os === 'windows' ? INSTALL_WIN : INSTALL_UNIX
+  const osHint = os.os === 'unknown' ? 'macOS · Linux · Windows' : `detected: ${os.label} · auto`
+
   return (
     <>
       <header className="hdr">
@@ -230,12 +254,12 @@ export default function App() {
           <div className="cmd">
             <div className="cmd-head">
               <b>install</b>
-              <i>macos · linux · windows</i>
+              <i>{osHint}</i>
             </div>
             <div className="cmd-row">
-              <span aria-hidden="true">$</span>
-              <code>{INSTALL}</code>
-              <CopyButton />
+              <span aria-hidden="true">{os.prompt}</span>
+              <code>{installCmd}</code>
+              <CopyButton text={installCmd} />
             </div>
           </div>
 
@@ -285,12 +309,12 @@ export default function App() {
             <div className="cmd" style={{ marginTop: 0, maxWidth: '100%' }}>
               <div className="cmd-head">
                 <b>install</b>
-                <i>macos · linux · windows</i>
+                <i>{osHint}</i>
               </div>
               <div className="cmd-row">
-                <span aria-hidden="true">$</span>
-                <code>{INSTALL}</code>
-                <CopyButton />
+                <span aria-hidden="true">{os.prompt}</span>
+                <code>{installCmd}</code>
+                <CopyButton text={installCmd} />
               </div>
             </div>
 
@@ -300,7 +324,7 @@ export default function App() {
                 <p>free · open source · macos / linux / windows</p>
               </div>
               <div className="cta-actions">
-                <CopyButton className="btn btn--solid" idle="[ copy install ]" />
+                <CopyButton text={installCmd} className="btn btn--solid" idle="[ copy install ]" />
                 <a className="btn" href={REPO} target="_blank" rel="noreferrer">[ github → ]</a>
               </div>
             </div>
