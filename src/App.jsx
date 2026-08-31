@@ -1,99 +1,350 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { castTotal, sliceCast } from './cast.js'
 
-export default function App(){
-  const [copied,setCopied]=useState(false)
-  const cmd='curl -fsSL https://code.hystersis.com/install.sh | sh'
+const INSTALL = 'curl -fsSL https://code.hystersis.com/install.sh | sh'
+const REPO = 'https://github.com/Himan-D/code'
+
+// Replace with a real `asciinema rec` capture: one entry per line, in order.
+const CAST = [
+  { text: '$ hystersis', tone: 't1' },
+  { text: '· session  ~/src/api · toolchain pinned · sandbox on', tone: 't3' },
+  { text: '', tone: 't3' },
+  { text: '> refactor auth middleware to the new session store', tone: 't1' },
+  { text: '· scan     148 files · 12.4k symbols · 0.6s', tone: 't2' },
+  { text: '· plan     2 edits · 1 check · 1 test', tone: 't2' },
+  { text: '· edit     src/auth/middleware.rs', tone: 't2' },
+  { text: '    -   let user = ctx.session_id();', tone: 't3' },
+  { text: '    +   let user = store.resolve(ctx.session_id())?;', tone: 't1' },
+  { text: '· edit     src/auth/session.rs            +11  -0', tone: 't2' },
+  { text: '· check    cargo check                    ok 1.79s', tone: 't2' },
+  { text: '· test     cargo test                     12 passed', tone: 't2' },
+  { text: '', tone: 't3' },
+  { text: '- done · 2 files · 0 conflicts · checkpoint #7', tone: 't1' },
+  { text: '  [d] diff    [k] keep    [u] undo', tone: 't3' }
+]
+
+const FEATURES = [
+  ['01', 'Rust-native, no wrapper', 'Workspace-aware edits, hunk tracking, VCS safety, fast worktree, process-scope enroll.'],
+  ['02', 'TUI · headless · ACP', 'The same agent in a full-screen TUI, headless in CI, or embedded over ACP. Scrollback, modals, diffs done right.'],
+  ['03', 'Tools that run', 'Terminal, file edits, search, MCP, skills, hooks — every step checkpointed. Long tasks go on the queue.']
+]
+
+// Wall-clock length of the capture, for the player's read-out.
+const CAST_SECONDS = 74
+const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+
+const ASKS = [
+  'Refactor auth middleware to the session store',
+  'Explain this codebase in one page',
+  'Find where we handle checkpointing'
+]
+
+function useReducedMotion() {
+  const [reduce, setReduce] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const on = () => setReduce(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return reduce
+}
+
+function useInView(ref) {
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (!('IntersectionObserver' in window)) { setSeen(true); return }
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } },
+      { rootMargin: '0px 0px -18% 0px' }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [ref])
+  return seen
+}
+
+function useTypewriter(text, active, speed = 34) {
+  const reduce = useReducedMotion()
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    if (reduce) { setN(text.length); return }
+    let i = 0
+    const id = setInterval(() => {
+      i += 1
+      setN(i)
+      if (i >= text.length) clearInterval(id)
+    }, speed)
+    return () => clearInterval(id)
+  }, [active, text, speed, reduce])
+  const shown = text.slice(0, n)
+  return { shown, done: n >= text.length, caret: active && n < text.length }
+}
+
+function useScrollProgress() {
+  const [p, setP] = useState(0)
+  useEffect(() => {
+    const on = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      setP(max > 0 ? Math.min(1, window.scrollY / max) : 0)
+    }
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    window.addEventListener('resize', on)
+    return () => {
+      window.removeEventListener('scroll', on)
+      window.removeEventListener('resize', on)
+    }
+  }, [])
+  return p
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch { /* not available over http or without permission — fall through */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    return ok
+  } catch {
+    return false
+  }
+}
+
+function Block({ id, prompt, children }) {
+  const ref = useRef(null)
+  const seen = useInView(ref)
+  const { shown, done, caret } = useTypewriter(prompt, seen)
 
   return (
-    <div style={{background:'#000', color:'#fff', fontFamily:'JetBrains Mono, monospace', minHeight:'100vh', padding:'12px'}}>
-      <style>{`
-        *{box-sizing:border-box}
-        pre{margin:0; white-space:pre-wrap; word-break:break-word}
-        a{color:#fff}
-        ::selection{background:#fff;color:#000}
-        @media(max-width:600px){
-          .hero-title{font-size:18px !important; line-height:20px !important}
-          .curl{flex-direction:column !important; align-items:stretch !important; gap:8px !important}
-          .curl code{font-size:9px !important; white-space:normal !important; word-break:break-all !important; overflow-wrap:anywhere !important}
-          .curl button{width:100% !important}
-          .tui{font-size:9px !important}
-        }
-      `}</style>
+    <section className="block" id={id} ref={ref}>
+      <h2 className="prompt">
+        <span aria-hidden="true">&gt;</span>
+        <span className="prompt-text">
+          {shown}
+          {caret && <i className="caret" aria-hidden="true" />}
+        </span>
+      </h2>
+      <div className={done ? 'answer in' : 'answer'}>{children}</div>
+    </section>
+  )
+}
 
-      <header style={{maxWidth:'760px', margin:'0 auto', border:'1px solid #fff', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', fontSize:'11px'}}>
-        <a href="/" style={{textDecoration:'none', fontWeight:700}}>hystersis</a>
-        <nav style={{display:'flex', gap:'12px'}}>
-          <a href="#install" style={{textDecoration:'none'}}>[Install]</a>
-          <a href="https://github.com/Himan-D/code" target="_blank" rel="noreferrer" style={{textDecoration:'none'}}>[GitHub]</a>
-        </nav>
+function CopyButton({ className = 'btn btn--sm', idle = '[ copy ]' }) {
+  const [state, setState] = useState('idle')
+  const timer = useRef(null)
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const onClick = useCallback(async () => {
+    const ok = await copyText(INSTALL)
+    setState(ok ? 'done' : 'failed')
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setState('idle'), 1600)
+  }, [])
+
+  const label = state === 'done' ? '[ copied ]' : state === 'failed' ? '[ press ⌘C ]' : idle
+  return (
+    <button type="button" className={className} onClick={onClick} aria-label="Copy the install command">
+      {label}
+    </button>
+  )
+}
+
+function Cast() {
+  const ref = useRef(null)
+  const seen = useInView(ref)
+  const reduce = useReducedMotion()
+  const total = useMemo(() => castTotal(CAST), [])
+  const [n, setN] = useState(0)
+  const [playing, setPlaying] = useState(true)
+
+  useEffect(() => {
+    if (!seen || reduce || !playing) return
+    const id = setInterval(() => setN((v) => (v > total + 90 ? 0 : v + 3)), 26)
+    return () => clearInterval(id)
+  }, [seen, reduce, playing, total])
+
+  const at = reduce ? total : Math.min(n, total)
+  const lines = sliceCast(CAST, at)
+  const pct = total ? Math.round((at / total) * 100) : 0
+  const clock = `${mmss(Math.round((pct / 100) * CAST_SECONDS))} / ${mmss(CAST_SECONDS)}`
+
+  return (
+    <div className="cast" ref={ref}>
+      <div className="cast-head">
+        <b>recorded session · asciicast</b>
+        <span>{clock}</span>
+      </div>
+      <div className="cast-body">
+        {lines.map((l, i) => (
+          <div key={i} className={`cast-line ${l.tone}`}>
+            {l.shown}
+            {l.caret && !reduce && <i className="caret" aria-hidden="true" />}
+          </div>
+        ))}
+      </div>
+      <div className="cast-foot">
+        <button type="button" className="btn btn--quiet" onClick={() => { setN(0); setPlaying(true) }}>
+          [ replay ]
+        </button>
+        <button
+          type="button"
+          className="btn btn--quiet"
+          onClick={() => setPlaying((p) => !p)}
+          aria-pressed={!playing}
+        >
+          {playing ? '[ pause ]' : '[ play ]'}
+        </button>
+        <div className="bar" role="presentation">
+          <div style={{ width: `${pct}%` }} />
+        </div>
+        <span className="cast-note">real capture · not a video</span>
+      </div>
+    </div>
+  )
+}
+
+export default function App() {
+  const progress = useScrollProgress()
+
+  return (
+    <>
+      <header className="hdr">
+        <div className="wrap hdr-in">
+          <a className="brand" href="#top">
+            <span className="brand-mark">H</span>
+            <span className="brand-name">hystersis</span>
+            <span className="brand-meta">~/src/api · ● ready</span>
+          </a>
+          <nav className="nav">
+            <a className="nl" href="#about">about</a>
+            <a className="nl" href="#demo">demo</a>
+            <a className="nl" href={REPO} target="_blank" rel="noreferrer">github</a>
+            <a className="nl nl--cta" href="#install">[ install ]</a>
+          </nav>
+        </div>
+        <div className="hdr-bar" style={{ width: `${progress * 100}%` }} />
       </header>
 
-      <main style={{maxWidth:'760px', margin:'0 auto', border:'1px solid #fff', borderTop:'none', padding:'0'}}>
-        <section aria-label="Hero" style={{padding:'16px 12px 0'}}>
-          <h1 className="hero-title" style={{fontSize:'22px', lineHeight:'22px', margin:0, fontWeight:800, letterSpacing:'0.06em'}}>HYSTERSIS</h1>
-          <h2 style={{fontSize:'13px', lineHeight:'15px', margin:'6px 0 0', fontWeight:400, letterSpacing:'0.12em', opacity:0.95}}>YOUR CODEBASE<br/>UNDERSTOOD.</h2>
-          <p style={{fontSize:'11px', lineHeight:'15px', margin:'8px 0 0', opacity:0.8}}>terminal-based AI coding agent — Rust-native.<br/>Full-screen TUI. Same UI you run locally.</p>
-        </section>
+      <main>
+        <section className="wrap hero" id="top">
+          <p className="kicker rise">&gt; rust-native terminal agent</p>
+          <h1 className="wordmark rise" style={{ '--d': '.06s' }}>HYSTERSIS</h1>
+          <p className="tagline rise" style={{ '--d': '.12s' }}>Your codebase, understood.</p>
+          <p className="lead rise" style={{ '--d': '.18s' }}>
+            A full-screen terminal UI that reads your repo before it touches it. Pinned toolchain,
+            sandboxed tools, checkpointed edits — the same agent in your terminal, in CI, or embedded over ACP.
+          </p>
 
-        <section id="install" aria-label="Install" style={{margin:'16px 12px 0', border:'1px solid #fff', padding:'8px 10px'}}>
-          <div className="curl" style={{display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap'}}>
-            <span style={{opacity:0.6, fontSize:'10px'}}>$</span>
-            <code style={{fontSize:'10px', flex:1, minWidth:'160px', wordBreak:'break-all'}}>{cmd}</code>
-            <button onClick={()=>{navigator.clipboard.writeText(cmd); setCopied(true); setTimeout(()=>setCopied(false),1200)}} aria-label="Copy install command" style={{background:'#fff', color:'#000', border:'1px solid #fff', padding:'4px 10px', fontFamily:'JetBrains Mono, monospace', fontSize:'11px', cursor:'pointer', fontWeight:700, whiteSpace:'nowrap'}}>{copied?'[ COPIED ]':'[ COPY ]'}</button>
-          </div>
-        </section>
-        <p style={{fontSize:'9px', opacity:0.5, textAlign:'center', margin:'6px 12px 0'}}>hystersis --version · cargo run -p hystersis-pager-bin · macOS / Linux / Windows</p>
-
-        <section aria-label="About" style={{padding:'18px 12px 0'}}>
-          <h2 style={{fontSize:'11px', margin:0, opacity:0.7}}>&gt; about</h2>
-          <p style={{fontSize:'11px', lineHeight:'16px', margin:'8px 0 0'}}>Hystersis is an engineering-driven terminal agent. Pinned toolchain, sandboxed tools, full-screen TUI with checkpointing. Reads your codebase before it touches it.</p>
-          <div style={{marginTop:'12px', display:'grid', gap:'8px'}}>
-            <div style={{border:'1px solid #fff', padding:'8px'}}>
-              <h3 style={{fontSize:'10px', margin:0, letterSpacing:'0.06em'}}>RUST-NATIVE, NO WRAPPER</h3>
-              <p style={{fontSize:'10px', margin:'4px 0 0', opacity:0.8, lineHeight:'14px'}}>Workspace-aware edits, hunk tracking, VCS safety, fast worktree, process-scope enroll.</p>
+          <div className="cmd rise" style={{ '--d': '.24s' }}>
+            <div className="cmd-head">
+              <b>install</b>
+              <i>macos · linux · windows</i>
             </div>
-            <div style={{border:'1px solid #fff', padding:'8px'}}>
-              <h3 style={{fontSize:'10px', margin:0, letterSpacing:'0.06em'}}>TUI + HEADLESS + ACP</h3>
-              <p style={{fontSize:'10px', margin:'4px 0 0', opacity:0.8, lineHeight:'14px'}}>Same agent in TUI, headless for CI, or via ACP. Scrollback, modals, diff done right.</p>
-            </div>
-            <div style={{border:'1px solid #fff', padding:'8px'}}>
-              <h3 style={{fontSize:'10px', margin:0, letterSpacing:'0.06em'}}>TOOLS THAT RUN</h3>
-              <p style={{fontSize:'10px', margin:'4px 0 0', opacity:0.8, lineHeight:'14px'}}>Terminal, file edits, search, MCP, skills, hooks — checkpointed. Long tasks via queue.</p>
+            <div className="cmd-row">
+              <span aria-hidden="true">$</span>
+              <code>{INSTALL}</code>
+              <CopyButton />
             </div>
           </div>
+
+          <p className="hint rise" style={{ '--d': '.32s' }}>
+            <span aria-hidden="true">↓</span>
+            <span>keep scrolling — the rest of this page is a session</span>
+          </p>
         </section>
 
-        <section aria-label="TUI preview" className="tui" style={{margin:'14px 12px 0', border:'1px solid #fff', padding:'10px', fontSize:'10px', lineHeight:'14px', overflow:'auto'}}>
-          <div style={{display:'flex', justifyContent:'space-between', opacity:0.7, borderBottom:'1px solid #fff', paddingBottom:'6px', marginBottom:'8px'}}>
-            <span>hystersis</span><span>[● ready]</span>
-          </div>
-          <div>&gt; Refactor auth middleware to use new store</div>
-          <div style={{marginTop:'6px', opacity:0.8}}>· [scan] crates/codegen/hystersis-agent ...<br/>· [edit] src/builder.rs +42 -8<br/>· [check] cargo check ✔ 1.79s · [test] 12 passed</div>
-          <div style={{marginTop:'8px', borderTop:'1px dashed #fff', paddingTop:'6px'}}>— Done. 2 files edited, 0 conflicts.</div>
-          <div style={{marginTop:'8px', opacity:0.6, fontSize:'9px', borderTop:'1px solid #fff', paddingTop:'6px'}}>[Enter] send &nbsp; [/] commands &nbsp; [Ctrl+C] interrupt</div>
-        </section>
+        <div className="wrap">
+          <Block id="about" prompt="what is hystersis?">
+            <p className="answer-lead">
+              An engineering-driven terminal agent. It scans, plans, edits and verifies — and shows you
+              the diff before anything lands.
+            </p>
+            <div className="cards">
+              {FEATURES.map(([n, title, body]) => (
+                <article className="card" key={n}>
+                  <p className="card-n">{n}</p>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </article>
+              ))}
+            </div>
+          </Block>
 
-        <section aria-label="Playground" style={{padding:'14px 12px 0'}}>
-          <h2 style={{fontSize:'10px', margin:0, opacity:0.7}}>&gt; playground</h2>
-          <p style={{fontSize:'11px', margin:'6px 0 0', lineHeight:'15px'}}>Paste the curl. Run hystersis. Ask it anything.</p>
-          <ul style={{fontSize:'10px', margin:'6px 0 0 14px', lineHeight:'15px', opacity:0.9}}>
-            <li>Refactor auth middleware to use session store</li>
-            <li>Explain this codebase in one page</li>
-            <li>Find where we handle checkpointing</li>
-          </ul>
-          <p style={{fontSize:'10px', margin:'6px 0 0', opacity:0.7}}>It reads, edits, checks — then shows you the diff.</p>
-        </section>
+          <Block id="demo" prompt="show me a real run">
+            <Cast />
+          </Block>
 
-        <div style={{margin:'16px 12px 0', border:'1px solid #fff', padding:'10px', textAlign:'center', display:'flex', gap:'12px', justifyContent:'center', flexWrap:'wrap'}}>
-          <a href="#install" style={{border:'1px solid #fff', padding:'6px 12px', textDecoration:'none', fontSize:'11px', background:'#fff', color:'#000', fontWeight:700}}>[ Install now ]</a>
-          <a href="https://github.com/Himan-D/code" target="_blank" rel="noreferrer" style={{border:'1px solid #fff', padding:'6px 12px', textDecoration:'none', fontSize:'11px'}}>[ GitHub → ]</a>
+          <Block id="ask" prompt="what should I ask it?">
+            <p className="answer-lead">Anything you would ask the engineer who wrote it.</p>
+            <div className="asks">
+              {ASKS.map((a) => (
+                <div className="ask" key={a}>
+                  <span aria-hidden="true">&gt;</span>
+                  <span>{a}</span>
+                </div>
+              ))}
+            </div>
+            <p className="lead" style={{ marginTop: 18 }}>
+              It reads, edits and checks — then shows you the diff before you keep it.
+            </p>
+          </Block>
+
+          <Block id="install" prompt="how do I install it?">
+            <div className="cmd" style={{ marginTop: 0, maxWidth: '100%' }}>
+              <div className="cmd-head">
+                <b>install</b>
+                <i>macos · linux · windows</i>
+              </div>
+              <div className="cmd-row">
+                <span aria-hidden="true">$</span>
+                <code>{INSTALL}</code>
+                <CopyButton />
+              </div>
+            </div>
+
+            <div className="cta" style={{ marginTop: 20 }}>
+              <div>
+                <h2>One line. Then it knows your repo.</h2>
+                <p>Free · open source · macOS, Linux and Windows</p>
+              </div>
+              <div className="cta-actions">
+                <CopyButton className="btn btn--solid" idle="[ copy install command ]" />
+                <a className="btn" href={REPO} target="_blank" rel="noreferrer">[ github → ]</a>
+              </div>
+            </div>
+
+            <div className="strip">
+              <span>hystersis --version</span>
+              <span>cargo run -p hystersis-pager-bin</span>
+              <span>no telemetry</span>
+            </div>
+          </Block>
         </div>
-
-        <footer style={{marginTop:'16px', borderTop:'1px solid #fff', padding:'10px 12px', display:'flex', justifyContent:'space-between', fontSize:'9px', opacity:0.5}}>
-          <span>© 2026 Hystersis</span>
-          <span>hystersis.com · code.hystersis.com</span>
-        </footer>
       </main>
-    </div>
+
+      <footer className="ftr">
+        <div className="wrap ftr-in">
+          <span>^C · session ended</span>
+          <span className="ftr-end">
+            <a href="#top">[ ↑ top ]</a>
+            <span>© 2026 hystersis · code.hystersis.com</span>
+          </span>
+        </div>
+      </footer>
+    </>
   )
 }
