@@ -17,7 +17,7 @@ try {
   Write-Host ""
   Write-Host "No published release found yet for $REPO."
   Write-Host "Install from source:"
-  Write-Host "  cargo install --git https://github.com/$REPO --package xai-hystersis-pager-bin --bin xai-hystersis-pager"
+  Write-Host "  cargo install --git https://github.com/$REPO --package hystersis-pager-bin --bin hystersis-pager"
   exit 0
 }
 
@@ -38,7 +38,7 @@ try {
   Write-Host "Binary not found: $URL"
   Write-Host "Available at: https://github.com/$REPO/releases/tag/$VERSION"
   Write-Host "Fallback:"
-  Write-Host "  cargo install --git https://github.com/$REPO --package xai-hystersis-pager-bin"
+  Write-Host "  cargo install --git https://github.com/$REPO --package hystersis-pager-bin"
   Remove-Item $DEST -ErrorAction SilentlyContinue
   exit 1
 }

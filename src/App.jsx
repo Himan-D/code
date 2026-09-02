@@ -168,19 +168,34 @@ function Block({ id, prompt, children }) {
   )
 }
 
-function CopyButton({ text, className = 'btn btn--sm', idle = '[ copy ]' }) {
+function CopyButton({ text, className = 'btn btn--sm', idle = '[ copy ]', isInstallCmd = false }) {
   const [state, setState] = useState('idle')
   const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const triggerDone = useCallback(() => {
+    setState('done')
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setState('idle'), 1600)
+  }, [])
+
   const onClick = useCallback(async () => {
     const ok = await copyText(text)
     setState(ok ? 'done' : 'failed')
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setState('idle'), 1600)
+    timer.current = setTimeout(() => setState('idle'), ok ? 1600 : 3000)
   }, [text])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  useEffect(() => {
+    if (!isInstallCmd) return
+    window.addEventListener('cmd-copied-success', triggerDone)
+    return () => window.removeEventListener('cmd-copied-success', triggerDone)
+  }, [isInstallCmd, triggerDone])
+
   const label = state === 'done' ? '[ copied ]' : state === 'failed' ? '[ press ctrl+c ]' : idle
   return (
-    <button type="button" className={className} onClick={onClick} aria-label="Copy install command">
+    <button type="button" className={className} onClick={onClick} aria-label="Copy command">
       {label}
     </button>
   )
@@ -239,6 +254,7 @@ export default function App() {
   const os = useOS()
   const installCmd = os.os === 'windows' ? INSTALL_WIN : INSTALL_UNIX
   const osHint = os.os === 'unknown' ? 'macOS · Linux · Windows' : `detected: ${os.label} · auto`
+  useKeyboardShortcuts(installCmd)
 
   return (
     <>
@@ -283,7 +299,7 @@ export default function App() {
             <div className="cmd-row">
               <span aria-hidden="true">{os.prompt}</span>
               <code>{installCmd}</code>
-              <CopyButton text={installCmd} />
+              <CopyButton text={installCmd} isInstallCmd />
             </div>
           </div>
 
@@ -338,7 +354,7 @@ export default function App() {
               <div className="cmd-row">
                 <span aria-hidden="true">{os.prompt}</span>
                 <code>{installCmd}</code>
-                <CopyButton text={installCmd} />
+                <CopyButton text={installCmd} isInstallCmd />
               </div>
             </div>
 
@@ -348,7 +364,7 @@ export default function App() {
                 <p>free · open source · macos / linux / windows</p>
               </div>
               <div className="cta-actions">
-                <CopyButton text={installCmd} className="btn btn--solid" idle="[ copy install ]" />
+                <CopyButton text={installCmd} className="btn btn--solid" idle="[ copy install ]" isInstallCmd />
                 <a className="btn" href={REPO} target="_blank" rel="noreferrer">[ github → ]</a>
               </div>
             </div>
@@ -364,7 +380,7 @@ export default function App() {
 
       <footer className="ftr">
         <div className="wrap ftr-in">
-          <span>^C · session ended</span>
+          <span>^C · session ended · shortcuts: [j/k] scroll · [c] copy install · [t/b] top/bottom</span>
           <span className="ftr-end">
             <a href="#top">[ ↑ top ]</a>
             <span>© 2026 hystersis · code.hystersis.com</span>
