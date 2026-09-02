@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { castTotal, sliceCast } from './cast.js'
 
 const INSTALL_UNIX = 'curl -fsSL https://code.hystersis.com/install.sh | sh'
-const INSTALL_WIN = 'powershell -c "irm https://code.hystersis.com/install.ps1 | iex"'
+const INSTALL_WIN = 'powershell -NoProfile -c "irm https://code.hystersis.com/install.ps1 | iex"'
 const REPO = 'https://github.com/Himan-D/hystersis'
 
 function detectOS() {
@@ -121,6 +121,30 @@ async function copyText(text) {
   } catch {
     return false
   }
+}
+
+function useKeyboardShortcuts(installCmd) {
+  useEffect(() => {
+    const onKeyDown = async (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      
+      if (e.key === 'j') {
+        window.scrollBy({ top: 150, behavior: 'smooth' })
+      } else if (e.key === 'k') {
+        window.scrollBy({ top: -150, behavior: 'smooth' })
+      } else if (e.key === 'c') {
+        const ok = await copyText(installCmd)
+        if (ok) window.dispatchEvent(new CustomEvent('cmd-copied-success'))
+      } else if (e.key === 't') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } else if (e.key === 'b') {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [installCmd])
 }
 
 function Block({ id, prompt, children }) {

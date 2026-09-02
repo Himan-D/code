@@ -1,5 +1,5 @@
 # Hystersis Windows installer — https://code.hystersis.com/install.ps1
-# Usage: powershell -c "irm https://code.hystersis.com/install.ps1 | iex"
+# Usage: powershell -NoProfile -c "irm https://code.hystersis.com/install.ps1 | iex"
 $ErrorActionPreference = "Stop"
 $REPO = "Himan-D/hystersis"
 Write-Host "Hystersis installer — https://code.hystersis.com"
